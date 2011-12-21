@@ -14,7 +14,7 @@ import System.IO (Handle, hPutStrLn)
 
 import XMonad
 import XMonad.Hooks.DynamicLog (PP(..), wrap, shorten, dynamicLogWithPP, xmobarColor)
-import XMonad.Hooks.ManageDocks (avoidStruts)
+import XMonad.Hooks.ManageDocks (avoidStruts, manageDocks)
 import XMonad.Util.Run (spawnPipe)
 import XMonad.Util.WorkspaceCompare (getSortByTag)
 import qualified XMonad.StackSet as W
@@ -162,11 +162,7 @@ layoutHook' = avoidStruts $ layoutHook defaultConfig
 -- To match on the WM_NAME, you can use 'title' in the same way that
 -- 'className' and 'resource' are used below.
 --
-manageHook' = composeAll
-    [ className =? "MPlayer"        --> doFloat
-    , className =? "Gimp"           --> doFloat
-    , resource  =? "desktop_window" --> doIgnore
-    , resource  =? "kdesktop"       --> doIgnore ]
+manageHook' = manageDocks <+> manageHook defaultConfig
 
 ------------------------------------------------------------------------
 -- Event handling
