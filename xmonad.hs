@@ -219,7 +219,7 @@ main = do
       -- simple stuff
         terminal           = "urxvt -fg grey -bg black",
         focusFollowsMouse  = False,
-        borderWidth        = 1,
+        borderWidth        = 0,
         modMask            = mod4Mask,
         workspaces         = ["1","2","3","4","5","6","7","8","9"],
         normalBorderColor  = "#dddddd",
