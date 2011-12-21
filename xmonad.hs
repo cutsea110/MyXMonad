@@ -1,20 +1,14 @@
---
--- xmonad example config file.
---
--- A template showing all available configuration hooks,
--- and how to override the defaults in your own xmonad.hs conf file.
---
--- Normally, you'd only override those defaults you care about.
---
+module Main where
 
-import Data.Monoid (mempty)
+import Data.Monoid (mempty, All)
 import qualified Data.Map as M
 import System.Exit (ExitCode(..), exitWith)
 import System.IO (Handle, hPutStrLn)
 
 import XMonad
 import XMonad.Hooks.DynamicLog (PP(..), wrap, shorten, dynamicLogWithPP, xmobarColor)
-import XMonad.Hooks.ManageDocks (avoidStruts, manageDocks)
+import XMonad.Hooks.ManageDocks (avoidStruts, manageDocks, AvoidStruts)
+import XMonad.Layout.LayoutModifier (ModifiedLayout)
 import XMonad.Util.Run (spawnPipe)
 import XMonad.Util.WorkspaceCompare (getSortByTag)
 import qualified XMonad.StackSet as W
@@ -22,6 +16,7 @@ import qualified XMonad.StackSet as W
 ------------------------------------------------------------------------
 -- Key bindings. Add, modify or remove key bindings here.
 --
+keys' :: XConfig Layout -> M.Map (KeyMask, KeySym) (X ())
 keys' conf@(XConfig {XMonad.modMask = modm}) = M.fromList $
 
     -- launch a terminal
@@ -118,6 +113,7 @@ keys' conf@(XConfig {XMonad.modMask = modm}) = M.fromList $
 ------------------------------------------------------------------------
 -- Mouse bindings: default actions bound to mouse events
 --
+mouseBindings' :: XConfig t -> M.Map (KeyMask, Button) (Window -> X ())
 mouseBindings' (XConfig {XMonad.modMask = modm}) = M.fromList $
 
     -- mod-button1, Set the window to floating mode and move by dragging
@@ -145,6 +141,7 @@ mouseBindings' (XConfig {XMonad.modMask = modm}) = M.fromList $
 -- The available layouts.  Note that each layout is separated by |||,
 -- which denotes layout choice.
 --
+layoutHook' :: ModifiedLayout AvoidStruts (Choose Tall (Choose (Mirror Tall) Full)) Window
 layoutHook' = avoidStruts $ layoutHook defaultConfig
 
 ------------------------------------------------------------------------
@@ -162,6 +159,7 @@ layoutHook' = avoidStruts $ layoutHook defaultConfig
 -- To match on the WM_NAME, you can use 'title' in the same way that
 -- 'className' and 'resource' are used below.
 --
+manageHook' :: ManageHook
 manageHook' = manageDocks <+> manageHook defaultConfig
 
 ------------------------------------------------------------------------
@@ -173,6 +171,7 @@ manageHook' = manageDocks <+> manageHook defaultConfig
 -- return (All True) if the default handler is to be run afterwards. To
 -- combine event hooks use mappend or mconcat from Data.Monoid.
 --
+eventHook' :: Event -> X Data.Monoid.All
 eventHook' = mempty
 
 ------------------------------------------------------------------------
@@ -206,6 +205,7 @@ logHook' h = dynamicLogWithPP PP {
 -- per-workspace layout choices.
 --
 -- By default, do nothing.
+startupHook' :: X ()
 startupHook' = return ()
 
 ------------------------------------------------------------------------
@@ -213,6 +213,7 @@ startupHook' = return ()
 
 -- Run xmonad with the settings you specify. No need to modify this.
 --
+main :: IO ()
 main = do
   xmobarHandle <- spawnPipe "xmobar"
   xmonad XConfig {
