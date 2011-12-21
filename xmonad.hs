@@ -7,12 +7,17 @@
 -- Normally, you'd only override those defaults you care about.
 --
 
-import XMonad
-import Data.Monoid
-import System.Exit
+import Data.Monoid (mempty)
+import qualified Data.Map as M
+import System.Exit (ExitCode(..), exitWith)
+import System.IO (Handle, hPutStrLn)
 
+import XMonad
+import XMonad.Hooks.DynamicLog (PP(..), wrap, shorten, dynamicLogWithPP, xmobarColor)
+import XMonad.Hooks.ManageDocks (avoidStruts)
+import XMonad.Util.Run (spawnPipe)
+import XMonad.Util.WorkspaceCompare (getSortByTag)
 import qualified XMonad.StackSet as W
-import qualified Data.Map        as M
 
 ------------------------------------------------------------------------
 -- Key bindings. Add, modify or remove key bindings here.
@@ -140,19 +145,7 @@ mouseBindings' (XConfig {XMonad.modMask = modm}) = M.fromList $
 -- The available layouts.  Note that each layout is separated by |||,
 -- which denotes layout choice.
 --
-layout' = tiled ||| Mirror tiled ||| Full
-  where
-     -- default tiling algorithm partitions the screen into two panes
-     tiled   = Tall nmaster delta ratio
-
-     -- The default number of windows in the master pane
-     nmaster = 1
-
-     -- Default proportion of screen occupied by master pane
-     ratio   = 1/2
-
-     -- Percent of screen to increment by when resizing panes
-     delta   = 3/100
+layoutHook' = avoidStruts $ layoutHook defaultConfig
 
 ------------------------------------------------------------------------
 -- Window rules:
@@ -192,7 +185,22 @@ eventHook' = mempty
 -- Perform an arbitrary action on each internal state change or X event.
 -- See the 'XMonad.Hooks.DynamicLog' extension for examples.
 --
-logHook' = return ()
+logHook' :: Handle -> X ()
+logHook' h = dynamicLogWithPP PP {
+  ppCurrent         = xmobarColor "#f33" "",
+  ppVisible         = xmobarColor "#cc0" "",
+  ppHidden          = id,
+  ppHiddenNoWindows = xmobarColor "#666" "",
+  ppUrgent          = xmobarColor "#f33" "#ff0",
+  ppSep             = wrap " " " " $ xmobarColor "" "#fff" " ",
+  ppWsSep           = " ",
+  ppTitle           = xmobarColor "#0f0" "" . shorten 60,
+  ppLayout          = id,
+  ppOrder           = id,
+  ppSort            = getSortByTag,
+  ppExtras          = [],
+  ppOutput          = hPutStrLn h }
+
 
 ------------------------------------------------------------------------
 -- Startup hook
@@ -209,15 +217,9 @@ startupHook' = return ()
 
 -- Run xmonad with the settings you specify. No need to modify this.
 --
-main = xmonad defaults
-
--- A structure containing your configuration settings, overriding
--- fields in the default config. Any you don't override, will
--- use the defaults defined in xmonad/XMonad/Config.hs
---
--- No need to modify this.
---
-defaults = defaultConfig {
+main = do
+  xmobarHandle <- spawnPipe "xmobar"
+  xmonad XConfig {
       -- simple stuff
         terminal           = "urxvt -fg grey -bg black",
         focusFollowsMouse  = True,
@@ -232,9 +234,9 @@ defaults = defaultConfig {
         mouseBindings      = mouseBindings',
 
       -- hooks, layouts
-        layoutHook         = layout',
+        layoutHook         = layoutHook',
         manageHook         = manageHook',
         handleEventHook    = eventHook',
-        logHook            = logHook',
+        logHook            = logHook' xmobarHandle,
         startupHook        = startupHook'
     }
