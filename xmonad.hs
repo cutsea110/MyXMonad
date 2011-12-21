@@ -218,7 +218,7 @@ main = do
   xmonad XConfig {
       -- simple stuff
         terminal           = "urxvt -fg grey -bg black",
-        focusFollowsMouse  = True,
+        focusFollowsMouse  = False,
         borderWidth        = 1,
         modMask            = mod4Mask,
         workspaces         = ["1","2","3","4","5","6","7","8","9"],
