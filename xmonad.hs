@@ -1,19 +1,86 @@
 module Main where
 
+import Control.Monad (join)
 import Data.Monoid (mempty, All)
 import qualified Data.Map as M
 import System.Exit (ExitCode(..), exitWith)
 import System.IO (Handle, hPutStrLn)
 
 import XMonad
+import XMonad.Actions.DynamicWorkspaces (addWorkspace, removeWorkspace)
+import XMonad.Actions.GridSelect (GSConfig(..), HasColorizer(..), TwoD(..))
+import qualified XMonad.Actions.GridSelect as GS
 import XMonad.Hooks.DynamicLog (PP(..), wrap, shorten, dynamicLogWithPP, xmobarColor)
-import XMonad.Hooks.ManageDocks (avoidStruts, manageDocks, AvoidStruts)
+import XMonad.Hooks.ManageDocks (avoidStruts, manageDocks, AvoidStruts, ToggleStruts(..))
 import XMonad.Layout.LayoutModifier (ModifiedLayout)
+import XMonad.Prompt (XPConfig(..), defaultXPConfig, XPPosition(..), defaultXPKeymap)
+import XMonad.Prompt.Input (inputPrompt)
 import XMonad.Util.Run (spawnPipe)
 import XMonad.Util.WorkspaceCompare (getSortByTag)
 import qualified XMonad.StackSet as W
 
-------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Theme
+--
+
+defaultFont, defaultFontL :: String
+defaultFont = "-misc-fixed-medium-r-normal--10-*"
+defaultFontL = "-misc-fixed-medium-r-normal--20-*"
+
+promptTheme :: XPConfig
+promptTheme = defaultXPConfig 
+  { font                = defaultFont
+  , bgColor             = "#33f"
+  , fgColor             = "#000"
+  , fgHLight            = "#fff"
+  , bgHLight            = "#000"
+  , borderColor         = "#44f"
+  , promptBorderWidth   = 0
+  , promptKeymap        = defaultXPKeymap
+  , completionKey       = xK_Tab
+  , position            = Bottom
+  , height              = 12
+  , historySize         = 256
+  , historyFilter       = id
+  , defaultText         = []
+  , autoComplete        = Nothing
+  , showCompletionOnTab = False
+  }
+
+gsConfig :: HasColorizer a => GSConfig a
+gsConfig = GSConfig 
+  { gs_cellheight = 40
+  , gs_cellwidth = 240
+  , gs_cellpadding = 10
+  , gs_colorizer = GS.defaultColorizer
+  , gs_font = defaultFontL
+  , gs_navigate = gsNavigation
+  , gs_originFractX = 1/2
+  , gs_originFractY = 1/2 
+  }
+
+gsNavigation :: TwoD a (Maybe a)
+gsNavigation = GS.makeXEventhandler $ GS.shadowWithKeymap navKeyMap $ const gsNavigation
+  where
+  navKeyMap = M.fromList [
+     ((0,           xK_Escape), GS.cancel),
+     ((controlMask, xK_m     ), GS.select),
+     ((0,           xK_Return), GS.select),
+     ((0,           xK_slash ), GS.substringSearch gsNavigation),
+     ((0,           xK_h     ), GS.move (-1,0) >> gsNavigation),
+     ((0,           xK_j     ), GS.move (0,1) >> gsNavigation),
+     ((0,           xK_k     ), GS.move (0,-1) >> gsNavigation),
+     ((0,           xK_l     ), GS.move (1,0) >> gsNavigation),
+     ((0,           xK_Tab   ), GS.moveNext >> gsNavigation),
+     ((shiftMask,   xK_Tab   ), GS.movePrev >> gsNavigation)]
+
+wsgrid :: X (Maybe WorkspaceId)
+wsgrid = workspaceList >>= GS.gridselect gsConfig' . map (join (,))
+  where
+  gsConfig' = gsConfig {
+    gs_cellwidth = 100,
+    gs_cellpadding = 30 }
+
 -- Key bindings. Add, modify or remove key bindings here.
 --
 keys' :: XConfig Layout -> M.Map (KeyMask, KeySym) (X ())
@@ -21,10 +88,8 @@ keys' conf@(XConfig {XMonad.modMask = modm}) = M.fromList $
 
     -- launch a terminal
     [ ((smodm,  xK_Return), spawn $ XMonad.terminal conf)
-
     -- launch dmenu
     , ((modm,   xK_p     ), spawn "dmenu_run")
-
     -- launch gmrun
     , ((smodm,  xK_p     ), spawn "gmrun")
 
@@ -33,58 +98,47 @@ keys' conf@(XConfig {XMonad.modMask = modm}) = M.fromList $
 
      -- Rotate through the available layout algorithms
     , ((modm,   xK_space ), sendMessage NextLayout)
-
     --  Reset the layouts on the current workspace to default
     , ((smodm,  xK_space ), setLayout $ XMonad.layoutHook conf)
-
     -- Resize viewed windows to the correct size
     , ((modm,   xK_n     ), refresh)
 
     -- Move focus to the next window
     , ((modm,   xK_Tab   ), windows W.focusDown)
-
     -- Move focus to the next window
     , ((modm,   xK_j     ), windows W.focusDown)
-
     -- Move focus to the previous window
     , ((modm,   xK_k     ), windows W.focusUp  )
-
     -- Move focus to the master window
     , ((modm,   xK_m     ), windows W.focusMaster  )
-
     -- Swap the focused window and the master window
     , ((modm,   xK_Return), windows W.swapMaster)
-
     -- Swap the focused window with the next window
     , ((smodm,  xK_j     ), windows W.swapDown  )
-
     -- Swap the focused window with the previous window
     , ((smodm,  xK_k     ), windows W.swapUp    )
-
     -- Shrink the master area
     , ((modm,   xK_h     ), sendMessage Shrink)
-
     -- Expand the master area
     , ((modm,   xK_l     ), sendMessage Expand)
-
     -- Push window back into tiling
     , ((modm,   xK_t     ), withFocused $ windows . W.sink)
 
     -- Increment the number of windows in the master area
     , ((modm,   xK_comma ), sendMessage (IncMasterN 1))
-
     -- Deincrement the number of windows in the master area
     , ((modm,   xK_period), sendMessage (IncMasterN (-1)))
-
     -- Toggle the status bar gap
-    -- Use this binding with avoidStruts from Hooks.ManageDocks.
-    -- See also the statusBar function from Hooks.DynamicLog.
-    --
-    -- , ((modm              , xK_b     ), sendMessage ToggleStruts)
+    , ((modm              , xK_b     ), sendMessage ToggleStruts)
 
+    -- Workspace
+    , ((modm,   xK_w         ), wsgrid >>= maybe (return ()) (windows . W.greedyView))
+    , ((smodm,  xK_w         ), wsgrid >>= maybe (return ()) (windows . W.shift))
+    , ((modm,   xK_i         ), addWorkspacePrompt promptTheme)
+    , ((smodm,  xK_i         ), removeWorkspace)
+      
     -- Quit xmonad
     , ((smodm,  xK_q     ), io $ exitWith ExitSuccess)
-
     -- Restart xmonad
     , ((modm,   xK_q     ), spawn "xmonad --recompile; xmonad --restart")
     ]
@@ -100,11 +154,11 @@ keys' conf@(XConfig {XMonad.modMask = modm}) = M.fromList $
     ++
 
     --
-    -- mod-{w,e,r}, Switch to physical/Xinerama screens 1, 2, or 3
-    -- mod-shift-{w,e,r}, Move client to screen 1, 2, or 3
+    -- mod-{F1,F2,F3}, Switch to physical/Xinerama screens 1, 2, or 3
+    -- mod-shift-{F1,F2,F3}, Move client to screen 1, 2, or 3
     --
     [((m .|. modm, key), screenWorkspace sc >>= flip whenJust (windows . f))
-        | (key, sc) <- zip [xK_w, xK_e, xK_r] [0..]
+        | (key, sc) <- zip [xK_F1, xK_F2, xK_F3] [0..]
         , (f, m) <- [(W.view, 0), (W.shift, shiftMask)]]
   where
     smodm = modm .|. shiftMask
@@ -129,6 +183,23 @@ mouseBindings' (XConfig {XMonad.modMask = modm}) = M.fromList $
 
     -- you may also bind events to the mouse scroll wheel (button4 and button5)
     ]
+
+--------------------------------------------------------------------------------
+-- Workspace
+--
+
+workspaceList :: X [WorkspaceId]
+workspaceList = gets $
+  (\(W.StackSet c v h _) ->
+    map W.tag (h ++ map W.workspace (c : v))) . windowset
+
+addWorkspacePrompt :: XPConfig -> X ()
+addWorkspacePrompt c = do
+  ws <- workspaceList
+  name' <- inputPrompt c "add workspace"
+  case name' of
+    Just name | name `notElem` ws && not (null name) -> addWorkspace name
+    _ -> return ()
 
 ------------------------------------------------------------------------
 -- Layouts:
@@ -220,7 +291,7 @@ main = do
       -- simple stuff
         terminal           = "urxvt -fg grey -bg black",
         focusFollowsMouse  = False,
-        borderWidth        = 0,
+        borderWidth        = 1,
         modMask            = mod4Mask,
         workspaces         = ["1","2","3","4","5","6","7","8","9"],
         normalBorderColor  = "#dddddd",
