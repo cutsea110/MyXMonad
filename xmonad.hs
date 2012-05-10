@@ -138,9 +138,11 @@ keys' conf@(XConfig {XMonad.modMask = modm}) = M.fromList $
     , ((smodm,  xK_i         ), removeWorkspace)
       
     -- Quit xmonad
-    , ((smodm,  xK_q     ), io $ exitWith ExitSuccess)
+    , ((scmodm, xK_q     ), io $ exitWith ExitSuccess)
     -- Restart xmonad
-    , ((modm,   xK_q     ), spawn "xmonad --recompile; xmonad --restart")
+    , ((smodm,  xK_q     ), spawn "xmonad --recompile; xmonad --restart")
+    -- lock
+    , ((modm,   xK_q     ), spawn "xlock -bg black -fg white")
     ]
     ++
 
@@ -162,6 +164,7 @@ keys' conf@(XConfig {XMonad.modMask = modm}) = M.fromList $
         , (f, m) <- [(W.view, 0), (W.shift, shiftMask)]]
   where
     smodm = modm .|. shiftMask
+    scmodm = modm .|. shiftMask .|. controlMask
 
 
 ------------------------------------------------------------------------
@@ -289,7 +292,7 @@ main = do
   xmobarHandle <- spawnPipe "xmobar"
   xmonad XConfig {
       -- simple stuff
-        terminal           = "urxvt -fg grey -bg black",
+        terminal           = "gnome-terminal",
         focusFollowsMouse  = False,
         borderWidth        = 1,
         modMask            = mod4Mask,
